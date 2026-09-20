@@ -191,7 +191,7 @@ export class MissionsService {
     const newTotal = user.totalXP + amount;
     const newLevel = levelForXP(newTotal);
 
-    await this.prisma.xpEvent.create({ data: { userId, amount, reason } });
+    await     await this.prisma.xPEvent.create({ data: { userId, amount, reason } });
     const updatedUser = await this.prisma.user.update({
       where: { id: userId },
       data: { totalXP: newTotal, level: newLevel },

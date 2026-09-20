@@ -4,10 +4,10 @@ import { FriendsService } from "../friends/friends.service.js";
 // Leaderboards rank by *behavior* (XP earned in the window, streak length) rather than
 // raw account balances, per product principle: don't let the richest person auto-win.
 export class LeaderboardsService {
-  private friends: FriendsService;
+  private friendsService: FriendsService;
 
   constructor(private prisma: PrismaClient) {
-    this.friends = new FriendsService(prisma);
+    this.friendsService = new FriendsService(prisma);
   }
 
   private async xpLeaderboard(userIds: string[] | null, sinceDays: number) {
@@ -41,12 +41,12 @@ export class LeaderboardsService {
   }
 
   async friends(userId: string, sinceDays = 7) {
-    const ids = await this.friends.friendIds(userId);
+    const ids = await this.friendsService.friendIds(userId);
     return this.xpLeaderboard([...ids, userId], sinceDays);
   }
 
   async streaks(userId: string, scope: "friends" | "global" = "friends") {
-    const ids = scope === "friends" ? [...(await this.friends.friendIds(userId)), userId] : undefined;
+    const ids = scope === "friends" ? [...(await this.friendsService.friendIds(userId)), userId] : undefined;
     const users = await this.prisma.user.findMany({
       where: ids ? { id: { in: ids } } : {},
       select: { id: true, username: true, name: true, avatarUrl: true, currentStreak: true, longestStreak: true },

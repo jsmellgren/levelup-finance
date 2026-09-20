@@ -1,4 +1,4 @@
-import type { PrismaClient, ActivityType, NotificationType } from "@prisma/client";
+import type { PrismaClient, ActivityType, NotificationType, Prisma } from "@prisma/client";
 
 export async function logActivity(
   prisma: PrismaClient,
@@ -8,7 +8,7 @@ export async function logActivity(
   metadata?: Record<string, unknown>
 ) {
   return prisma.activityEvent.create({
-    data: { userId, type, message, metadata: metadata ?? undefined },
+    data: { userId, type, message, metadata: (metadata as Prisma.InputJsonValue) ?? undefined },
   });
 }
 
@@ -20,6 +20,6 @@ export async function notify(
   metadata?: Record<string, unknown>
 ) {
   return prisma.notification.create({
-    data: { userId, type, message, metadata: metadata ?? undefined },
+    data: { userId, type, message, metadata: (metadata as Prisma.InputJsonValue) ?? undefined },
   });
 }

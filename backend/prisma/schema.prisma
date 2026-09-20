@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 enum MissionType {
@@ -90,6 +91,8 @@ model User {
   currentStreak   Int               @default(0)
   longestStreak   Int               @default(0)
   lastActivityAt  DateTime?
+  passwordResetToken       String?           @unique
+  passwordResetExpiresAt   DateTime?
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 
