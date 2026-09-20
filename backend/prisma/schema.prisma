@@ -1,0 +1,303 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum MissionType {
+  DEBT
+  SAVINGS
+  NET_WORTH
+  CUSTOM
+}
+
+enum MissionStatus {
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+enum TaskStatus {
+  PENDING
+  COMPLETED
+  SKIPPED
+}
+
+enum FriendshipStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+}
+
+enum GroupRole {
+  OWNER
+  MEMBER
+}
+
+enum ChallengeType {
+  SAVINGS
+  DEBT
+  SPENDING
+  HABIT
+}
+
+enum ChallengeStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+// PRIVATE = invite-only (friend challenge). GROUP = tied to a Group. PUBLIC = creator challenge, joinable via shareSlug link.
+enum ChallengeVisibility {
+  PRIVATE
+  GROUP
+  PUBLIC
+}
+
+enum ActivityType {
+  GOAL_MILESTONE
+  GOAL_COMPLETED
+  CHALLENGE_JOINED
+  CHALLENGE_COMPLETED
+  CHALLENGE_WON
+  ACHIEVEMENT_UNLOCKED
+  LEVEL_UP
+  STREAK_MILESTONE
+}
+
+enum NotificationType {
+  FRIEND_REQUEST
+  FRIEND_ACCEPTED
+  CHALLENGE_INVITE
+  GOAL_MILESTONE
+  CHALLENGE_ENDING_SOON
+  GROUP_INVITE
+}
+
+model User {
+  id              String            @id @default(cuid())
+  email           String            @unique
+  username        String?           @unique
+  avatarUrl       String?
+  passwordHash    String
+  name            String?
+  onboarded       Boolean           @default(false)
+  level           Int               @default(1)
+  totalXP         Int               @default(0)
+  currentStreak   Int               @default(0)
+  longestStreak   Int               @default(0)
+  lastActivityAt  DateTime?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  missions              Mission[]
+  tasks                 Task[]
+  xpEvents              XPEvent[]
+  achievements          UserAchievement[]
+
+  friendshipsSent       Friendship[]           @relation("FriendshipRequester")
+  friendshipsReceived   Friendship[]           @relation("FriendshipRecipient")
+  groupMemberships      GroupMembership[]
+  createdGroups         Group[]                @relation("GroupCreator")
+  createdChallenges     Challenge[]            @relation("ChallengeCreator")
+  challengeEntries      ChallengeParticipant[]
+  goalContributions     GoalContributor[]
+  progressEntries       ProgressEntry[]
+  activityEvents        ActivityEvent[]
+  notifications         Notification[]
+}
+
+model Mission {
+  id          String        @id @default(cuid())
+  userId      String
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        MissionType
+  title       String
+  isPrimary   Boolean       @default(false)
+  status      MissionStatus @default(ACTIVE)
+  createdAt   DateTime      @default(now())
+
+  goal        Goal?
+  tasks       Task[]
+}
+
+model Goal {
+  id                       String    @id @default(cuid())
+  missionId                String    @unique
+  mission                  Mission   @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  currentAmount            Decimal   @default(0)
+  targetAmount             Decimal
+  targetDate               DateTime?
+  estimatedCompletionDate  DateTime?
+  monthlyContribution      Decimal?
+  interestRate             Decimal?
+  isShared                 Boolean   @default(false)
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+
+  progressEntries          ProgressEntry[]
+  contributors             GoalContributor[]
+}
+
+// Lets a goal have more than one contributor (shared savings goals). The Mission/Goal still has a single
+// owner (the creator); this table is the invite list of who else can log progress against it.
+model GoalContributor {
+  id        String   @id @default(cuid())
+  goalId    String
+  goal      Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  joinedAt  DateTime @default(now())
+
+  @@unique([goalId, userId])
+}
+
+model ProgressEntry {
+  id            String   @id @default(cuid())
+  goalId        String
+  goal          Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  contributorId String?
+  contributor   User?    @relation(fields: [contributorId], references: [id], onDelete: SetNull)
+  amount        Decimal
+  note          String?
+  createdAt     DateTime @default(now())
+}
+
+model Task {
+  id         String     @id @default(cuid())
+  userId     String
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  missionId  String?
+  mission    Mission?   @relation(fields: [missionId], references: [id], onDelete: SetNull)
+  title      String
+  xpReward   Int        @default(50)
+  status     TaskStatus @default(PENDING)
+  dueDate    DateTime   @default(now())
+  createdAt  DateTime   @default(now())
+}
+
+model XPEvent {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount    Int
+  reason    String
+  createdAt DateTime @default(now())
+}
+
+model Achievement {
+  id          String @id @default(cuid())
+  key         String @unique
+  title       String
+  description String
+  icon        String
+
+  users       UserAchievement[]
+}
+
+model UserAchievement {
+  id            String      @id @default(cuid())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievementId String
+  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+  unlockedAt    DateTime    @default(now())
+
+  @@unique([userId, achievementId])
+}
+
+model Friendship {
+  id           String           @id @default(cuid())
+  requesterId  String
+  requester    User             @relation("FriendshipRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  recipientId  String
+  recipient    User             @relation("FriendshipRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  status       FriendshipStatus @default(PENDING)
+  createdAt    DateTime         @default(now())
+  respondedAt  DateTime?
+
+  @@unique([requesterId, recipientId])
+}
+
+model Group {
+  id          String   @id @default(cuid())
+  name        String
+  creatorId   String
+  creator     User     @relation("GroupCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+
+  memberships GroupMembership[]
+  challenges  Challenge[]
+}
+
+model GroupMembership {
+  id       String    @id @default(cuid())
+  groupId  String
+  group    Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role     GroupRole @default(MEMBER)
+  joinedAt DateTime  @default(now())
+
+  @@unique([groupId, userId])
+}
+
+model Challenge {
+  id            String              @id @default(cuid())
+  creatorId     String
+  creator       User                @relation("ChallengeCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  groupId       String?
+  group         Group?              @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  type          ChallengeType
+  title         String
+  description   String?
+  targetAmount  Decimal?
+  durationDays  Int
+  startDate     DateTime            @default(now())
+  endDate       DateTime
+  visibility    ChallengeVisibility @default(PRIVATE)
+  shareSlug     String?             @unique
+  status        ChallengeStatus     @default(ACTIVE)
+  createdAt     DateTime            @default(now())
+
+  participants  ChallengeParticipant[]
+}
+
+model ChallengeParticipant {
+  id            String    @id @default(cuid())
+  challengeId   String
+  challenge     Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  currentAmount Decimal   @default(0)
+  joinedAt      DateTime  @default(now())
+  completedAt   DateTime?
+
+  @@unique([challengeId, userId])
+}
+
+// Pull-based feed: we write one row per notable event, and the /feed route queries this
+// table filtered to (self + accepted friends), newest first. No fan-out table needed at MVP scale.
+model ActivityEvent {
+  id        String       @id @default(cuid())
+  userId    String
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      ActivityType
+  message   String
+  metadata  Json?
+  createdAt DateTime     @default(now())
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  message   String
+  isRead    Boolean          @default(false)
+  metadata  Json?
+  createdAt DateTime         @default(now())
+}
